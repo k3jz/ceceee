@@ -8,3 +8,481 @@ local Window = Library:CreateWindow({
     TabPadding = 8,
     MenuFadeTime = 0.2,
 })
+
+local lockedTarget = nil
+local StickyAimEnabled = false
+local HighlightEnabled = false
+local TracerEnabled = false
+local ViewTargetEnabled = false
+local targetHitPart = "Head"
+local targetToMouseTracer = true
+local grabCheckEnabled = true
+local koCheckEnabled = true
+local friendCheckEnabled = false
+local strafeEnabled = false
+local strafeMode = "Orbit"
+local strafeSpeed = 5
+local strafeXOffset = 5
+local predictMovementEnabled = false
+local stompTargetEnabled = false
+local lastPosition = nil
+local oldPosition = nil
+local Core = nil
+local BodyVelocity = nil
+local PredicTvalue = 1
+local hiddenBulletsEnabled = false
+local spectateStrafeEnabled = false
+local AutoAmmoEnabled = false
+local strafeWasEnabledBeforeAmmoBuy = false
+
+local tracer = Drawing.new("Line")
+tracer.Visible = false
+tracer.Thickness = 1
+tracer.Color = Color3.fromRGB(255, 255, 255)
+
+
+function predictPosition(targetRoot, predictionMultiplier)
+    if not targetRoot then return targetRoot.Position end
+    if targetRoot.Velocity.Magnitude > 700 then
+        return targetRoot.Position
+    end
+    return targetRoot.Position + (targetRoot.Velocity * predictionMultiplier)
+end
+
+local TargetingGroup = Tabs.Main:AddLeftGroupbox('Targeting')
+
+TargetingGroup:AddToggle("StickyAim", {
+    Text = "Sticky Aim",
+    Default = false,
+    Callback = function(Value)
+        StickyAimEnabled = Value
+        if not Value then
+            lockedTarget = nil
+            workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
+            targetHighlight.Enabled = false
+            tracer.Visible = false
+        end
+    end
+}):AddKeyPicker("StickyAimKeybind", {
+    Default = "C",
+    NoUI = false,
+    Text = "Sticky Aim",
+    Mode = "Toggle",
+    Callback = function()
+        if UserInputService:GetFocusedTextBox() then return end
+        if lockedTarget then
+            lockedTarget = nil
+            workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
+            targetHighlight.Enabled = false
+            tracer.Visible = false
+        else
+            local camera = workspace.CurrentCamera
+            local mouseLocation = UserInputService:GetMouseLocation()
+            local closestTarget, closestDistance = nil, math.huge
+
+            for _, otherPlayer in ipairs(Players:GetPlayers()) do
+                if otherPlayer ~= LocalPlayer and otherPlayer.Character and otherPlayer.Character:FindFirstChild(targetHitPart) then
+                    local bodyEffects = otherPlayer.Character:FindFirstChild("BodyEffects")
+                    local isKO = bodyEffects and bodyEffects:FindFirstChild("K.O") and bodyEffects["K.O"].Value
+                    local isGrabbed = otherPlayer.Character:FindFirstChild("GRABBING_CONSTRAINT")
+
+                    if (not grabCheckEnabled or not isGrabbed) and
+                       (not friendCheckEnabled or not LocalPlayer:IsFriendsWith(otherPlayer.UserId)) then
+
+                        local targetPart = otherPlayer.Character[targetHitPart]
+                        local screenPosition, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+                        if onScreen then
+                            local distance = (Vector2.new(screenPosition.X, screenPosition.Y) - mouseLocation).Magnitude
+                            if distance < closestDistance then
+                                closestTarget = otherPlayer
+                                closestDistance = distance
+                            end
+                        end
+                    end
+                end
+            end
+
+            if closestTarget then
+                lockedTarget = closestTarget
+            end
+        end
+    end
+})
+
+local Target = Tabs.Main:AddLeftGroupbox('Target')
+
+maddieplsnomad = false
+
+TargetingGroup:AddToggle("ViewTarget", {
+    Text = "spectate",
+    Default = false,
+    Callback = function(Value)
+        maddieplsnomad = Value
+        if not Value then
+            ViewTargetEnabled = false
+            workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
+        end
+    end
+}):AddKeyPicker("ViewTargetKeybind", {
+    Default = "B",
+    NoUI = false,
+    Text = "spectate",
+    Mode = "Toggle",
+    Callback = function()
+        if not maddieplsnomad or UserInputService:GetFocusedTextBox() then return end
+        ViewTargetEnabled = not ViewTargetEnabled
+        if ViewTargetEnabled and lockedTarget then
+            workspace.CurrentCamera.CameraSubject = lockedTarget.Character
+        else
+            workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
+        end
+    end
+})
+
+TargetingGroup:AddDropdown("hp", {
+    Text = "Hit Part",
+    Values = {"Head", "HumanoidRootPart", "UpperTorso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"},
+    Default = "Head",
+    Callback = function(Value)
+        targetHitPart = Value
+    end
+})
+
+Target:AddToggle("StrafeToggle", {
+    Text = "Target Strafe",
+    Default = false,
+    Callback = function(Value)
+        strafeEnabled = Value
+        if not Value then
+            if Core then
+                Core:Destroy()
+                Core = nil
+            end
+            if BodyVelocity then
+                BodyVelocity:Destroy()
+                BodyVelocity = nil
+            end
+            if oldPosition then
+                LocalPlayer.Character.HumanoidRootPart.CFrame = oldPosition
+                oldPosition = nil
+            end
+            workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
+        end
+    end
+}):AddKeyPicker("StrafeKeybind", {
+    Default = "N",
+    NoUI = false,
+    Text = "Strafe",
+    Mode = "Toggle",
+    Callback = function()
+        if UserInputService:GetFocusedTextBox() then return end
+        strafeEnabled = not strafeEnabled
+        if not strafeEnabled then
+            if Core then
+                Core:Destroy()
+                Core = nil
+            end
+            if BodyVelocity then
+                BodyVelocity:Destroy()
+                BodyVelocity = nil
+            end
+            if oldPosition then
+                LocalPlayer.Character.HumanoidRootPart.CFrame = oldPosition
+                oldPosition = nil
+            end
+            workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
+        end
+    end
+})
+
+Target:AddToggle("SpectateStrafe", {
+    Text = "Spectate Strafe",
+    Default = false,
+    Callback = function(Value)
+        spectateStrafeEnabled = Value
+        if not Value then
+            workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
+        end
+    end
+})
+
+Target:AddDropdown("StrafeMode", {
+    Text = "Strafe Mode",
+    Values = {"Orbit", "Random"},
+    Default = "Orbit",
+    Callback = function(Value)
+        strafeMode = Value
+    end
+})
+
+Target:AddSlider("StrafeSpeed", {
+    Text = "Speed units",
+    Default = 5,
+    Min = 1,
+    Max = 20,
+    Rounding = 1,
+    Callback = function(Value)
+        strafeSpeed = Value
+    end
+})
+
+Target:AddSlider("StrafeXOffset", {
+    Text = "z offset",
+    Default = 5,
+    Min = 1,
+    Max = 20,
+    Rounding = 1,
+    Callback = function(Value)
+        strafeXOffset = Value
+    end
+})
+
+Target:AddToggle("PredictMovement", {
+    Text = "predict movement",
+    Default = false,
+    Callback = function(Value)
+        predictMovementEnabled = Value
+    end
+})
+
+Target:AddSlider("StrafePredictionDistance", {
+    Text = "movement prediction",
+    Default = 0.3,
+    Min = 0.1,
+    Max = 10,
+    Rounding = 1,
+    Callback = function(Value)
+        PredicTvalue = Value
+    end
+})
+
+TargetingGroup:AddToggle("StompTarget", {
+    Text = "Stomp Target",
+    Default = false,
+    Callback = function(Value)
+        stompTargetEnabled = Value
+    end
+})
+
+TargetingGroup:AddToggle("HiddenBullets", {
+    Text = "invisible bullets",
+    Default = false,
+    Callback = function(Value)
+        hiddenBulletsEnabled = Value
+    end
+})
+
+TargetingGroup:AddToggle("AutoAmmo", {
+    Text = "Auto Ammo",
+    Default = false,
+    Callback = function(Value)
+        AutoAmmoEnabled = Value
+    end
+})
+
+local function getCurrentGun()
+    local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+    if tool then
+        return tool.Name
+    end
+    return nil
+end
+
+local function getAmmoCount(gunName)
+    local inventory = LocalPlayer.DataFolder.Inventory
+    local ammo = inventory:FindFirstChild(gunName)
+    if ammo then
+        return tonumber(ammo.Value) or 0
+    end
+    return 0
+end
+
+local function buyAmmo(gunName)
+    local ShopFolder = Workspace:WaitForChild("Ignored"):WaitForChild("Shop")
+    local AmmoMap = {
+        ["[Revolver]"] = "12 [Revolver Ammo] - $55",
+        ["[AUG]"] = "90 [AUG Ammo] - $87",
+        ["[LMG]"] = "200 [LMG Ammo] - $328",
+        ["[Rifle]"] = "5 [Rifle Ammo] - $273",
+    }
+
+    local ammoItemName = AmmoMap[gunName]
+    if not ammoItemName then return end
+
+    local ammoItem = ShopFolder:FindFirstChild(ammoItemName)
+    if not ammoItem then return end
+
+    local oldPosition = LocalPlayer.Character.HumanoidRootPart.CFrame
+    local currentTool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
+
+    if currentTool then
+        currentTool.Parent = LocalPlayer.Backpack
+    end
+
+    LocalPlayer.Character.HumanoidRootPart.CFrame = ammoItem.Head.CFrame * CFrame.new(0, 3.2, 0)
+
+    local clickDetector = ammoItem:FindFirstChild("ClickDetector")
+    if clickDetector then
+        for i = 1, 5 do
+            fireclickdetector(clickDetector)
+            task.wait(0)
+        end
+    end
+
+    if currentTool then
+        currentTool.Parent = LocalPlayer.Character
+    end
+
+    LocalPlayer.Character.HumanoidRootPart.CFrame = oldPosition
+end
+
+local function checkAmmoAndBuy()
+    if not AutoAmmoEnabled then return end
+
+    local gunName = getCurrentGun()
+    if not gunName then return end
+
+    local ammoCount = getAmmoCount(gunName)
+    if ammoCount <= 0 then
+        strafeWasEnabledBeforeAmmoBuy = strafeEnabled
+        strafeEnabled = false
+        if Core then
+            Core:Destroy()
+            Core = nil
+        end
+        if BodyVelocity then
+            BodyVelocity:Destroy()
+            BodyVelocity = nil
+        end
+
+        buyAmmo(gunName)
+
+        if strafeWasEnabledBeforeAmmoBuy then
+            strafeEnabled = true
+        end
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    checkAmmoAndBuy()
+
+    if lockedTarget and lockedTarget.Character then
+        local targetPart = lockedTarget.Character:FindFirstChild(targetHitPart)
+        local bodyEffects = lockedTarget.Character:FindFirstChild("BodyEffects")
+        local isKO = bodyEffects and bodyEffects:FindFirstChild("K.O") and bodyEffects["K.O"].Value
+        local isGrabbed = lockedTarget.Character:FindFirstChild("GRABBING_CONSTRAINT")
+
+        if ViewTargetEnabled then
+            workspace.CurrentCamera.CameraSubject = lockedTarget.Character
+        elseif spectateStrafeEnabled and strafeEnabled then
+            workspace.CurrentCamera.CameraSubject = lockedTarget.Character:FindFirstChild("Head")
+        end
+
+        if strafeEnabled and targetPart and not isGrabbed then
+            local targetRoot = lockedTarget.Character:FindFirstChild("HumanoidRootPart")
+            local targetPosition = targetRoot.Position
+
+            if predictMovementEnabled then
+                targetPosition = predictPosition(targetRoot, PredicTvalue)
+            end
+
+            if strafeMode == "Orbit" then
+                local angle = tick() * strafeSpeed
+                local offset = Vector3.new(math.cos(angle) * strafeXOffset, -0.1, math.sin(angle) * strafeXOffset)
+                LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(targetPosition + offset, targetPosition)
+            elseif strafeMode == "Random" then
+                local offset = Vector3.new(math.random(-20, 20), math.random(-10, 10), math.random(-20, 20))
+                local randomrotation = CFrame.Angles(
+                    math.rad(math.random(0, 360)),
+                    math.rad(math.random(0, 360)),
+                    math.rad(math.random(0, 360))
+                )
+                LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(targetPosition + offset) * randomrotation
+            end
+        end
+
+        local humanoid = lockedTarget.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            if not getgenv().lastHealth[lockedTarget.Name] then
+                getgenv().lastHealth[lockedTarget.Name] = humanoid.Health
+            end
+            if humanoid.Health < getgenv().lastHealth[lockedTarget.Name] then
+                playHitsound()
+            end
+            getgenv().lastHealth[lockedTarget.Name] = humanoid.Health
+        end
+
+        if TracerEnabled and targetPart then
+            tracer.Visible = true
+            local camera = workspace.CurrentCamera
+            local targetScreenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+            local endScreenPos
+
+            if targetToMouseTracer then
+                endScreenPos = UserInputService:GetMouseLocation()
+            else
+                local rootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if rootPart then
+                    local rootScreenPos, rootOnScreen = camera:WorldToViewportPoint(rootPart.Position)
+                    if rootOnScreen then
+                        endScreenPos = Vector2.new(rootScreenPos.X, rootScreenPos.Y)
+                    end
+                end
+            end
+
+            if onScreen and endScreenPos then
+                tracer.From = Vector2.new(targetScreenPos.X, targetScreenPos.Y)
+                tracer.To = endScreenPos
+            else
+                tracer.Visible = false
+            end
+        else
+            tracer.Visible = false
+        end
+
+        local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+        local handle = tool and tool:FindFirstChild("Handle")
+        if tool and handle and targetPart and not isKO and not isGrabbed then
+            if hiddenBulletsEnabled then
+                ReplicatedStorage.MainEvent:FireServer(
+                    "ShootGun",
+                    handle,
+                    handle.CFrame.Position - Vector3.new(0, 10, 0),
+                    targetPart.Position - Vector3.new(0, 10, 0),
+                    targetPart,
+                    Vector3.new(0, 0, -1))
+            else
+                ReplicatedStorage.MainEvent:FireServer(
+                    "ShootGun",
+                    handle,
+                    handle.CFrame.Position,
+                    targetPart.Position,
+                    targetPart,
+                    Vector3.new(0, 0, -1))
+            end
+        end
+    else
+        tracer.Visible = false
+    end
+end)
+
+local killSayEnabled = false
+local killSayMessages = {
+    "k3JZ is a free script and u die to it..", 
+    "Must be hard without k3JZ 💔", 
+    "Why aim when k3JZ does it for you?",
+    "Bros not on k3JZ already 😂",
+    "Cant be me icl",
+    "cant win a hvh? maybe try k3JZ",
+    "if u wanna win hop in k3JZ",
+    "hey come on if u cant win get k3JZ",
+    "how to win a hvh? step 1 get k3JZ"
+}
+
+TargetingGroup:AddToggle("killsay", { 
+    Text = "Kill Say", 
+    Default = false,
+    Callback = function(Value)
+        killSayEnabled = Value
+    end
+})
