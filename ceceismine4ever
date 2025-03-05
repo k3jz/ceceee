@@ -732,8 +732,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-local CamLockBox = Tabs.Main:AddRightGroupbox('Legit')
-
+LeftGroupBox = Tabs.Main:AddLeftGroupbox('Aimlock')
 
     -- Services and Variables
     local Players = game:GetService("Players")
