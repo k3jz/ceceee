@@ -732,7 +732,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-LeftGroupBox = Tabs.Main:AddLeftGroupbox('Aimlock')
+local CamLockBox = Tabs.Main:AddRightGroupbox('Legit')
 
 
     -- Services and Variables
