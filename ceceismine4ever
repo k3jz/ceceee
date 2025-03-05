@@ -2344,10 +2344,6 @@ game:GetService('RunService').RenderStepped:Connect(function()
     local player = game.Players.LocalPlayer
     local humanoid = player.Character and player.Character:FindFirstChild('Humanoid')
     if not humanoid then return end
-    
-    humanoid.WalkSpeed = getgenv().walkSpeedEnabled and getgenv().walkSpeedKeybindActive and getgenv().walkSpeed or 16
-    humanoid.JumpPower = getgenv().jumpPowerEnabled and getgenv().jumpPower or 50
-end)
 
 task.spawn(function()
     while task.wait(0) do
