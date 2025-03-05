@@ -2282,52 +2282,6 @@ uhhh:AddToggle('CFrameSpeedToggle', {
     end,
 })
 
-uhhh:AddToggle('WalkSpeedToggle', {
-    Text = 'WalkSpeed',
-    Default = false,
-    Callback = function(state)
-        getgenv().walkSpeedEnabled = state
-        if not state then getgenv().walkSpeedKeybindActive = false end
-    end,
-}):AddKeyPicker('WalkSpeedKeybind', {
-    Default = 'T',
-    Text = 'Velocity',
-    Mode = 'Toggle',
-    Callback = function(state)
-        if game:GetService("UserInputService"):GetFocusedTextBox() then return end
-        if getgenv().walkSpeedEnabled then getgenv().walkSpeedKeybindActive = state end
-    end,
-})
-
-uhhh:AddToggle('JumpPowerToggle', {
-    Text = 'JumpPower',
-    Default = false,
-    Callback = function(state)
-        getgenv().jumpPowerEnabled = state
-    end,
-})
-
-uhhh:AddSlider('WalkSpeedSlider', {
-    Text = 'WalkSpeed',
-    Default = 16,
-    Min = 16,
-    Max = 500,
-    Rounding = 0,
-    Callback = function(value)
-        getgenv().walkSpeed = value
-    end,
-})
-
-uhhh:AddSlider('JumpPowerSlider', {
-    Text = 'JumpPower',
-    Default = 50,
-    Min = 50,
-    Max = 500,
-    Rounding = 0,
-    Callback = function(value)
-        getgenv().jumpPower = value
-    end,
-})
 
 uhhh:AddSlider('CFrameSpeedSlider', {
     Text = 'Speed',
