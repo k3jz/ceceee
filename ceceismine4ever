@@ -9,6 +9,18 @@ local Window = Library:CreateWindow({
     MenuFadeTime = 0.2,
 })
 
+local Tabs = { Main = Window:AddTab('Main'), Character = Window:AddTab('Character'), Visuals = Window:AddTab('Visuals'), Misc = Window:AddTab('Misc'), Players = Window:AddTab('Players'), ['UI Settings'] = Window:AddTab('UI Settings') }
+local GunMods = Tabs.Main:AddRightGroupbox('Gun Mods')
+local KillAura = Tabs.Main:AddRightGroupbox('Combat')
+
+local MenuGroup = Tabs['UI Settings']:AddLeftGroupbox('Menu')
+
+local LocalPlayer = game:GetService('Players').LocalPlayer
+local Players = game:GetService('Players')
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
 local lockedTarget = nil
 local StickyAimEnabled = false
 local HighlightEnabled = false
