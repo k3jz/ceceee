@@ -998,3 +998,787 @@ LeftGroupBox = Tabs.Main:AddLeftGroupbox('Aimlock')
             end
         end
     })
+    
+    LeftGroupBox:AddLabel('Locked Highlight Color'):AddColorPicker('LockedColorPicker', {
+        Default = lockedHighlightColor,
+        Title = 'Locked Player Highlight Color',
+        Transparency = 0,
+        Callback = function(Value)
+            print('[cb] Locked Highlight Color changed!', Value)
+            lockedHighlightColor = Value
+            if lockedHighlight then
+                lockedHighlight.FillColor = Value
+            end
+        end
+    })
+    
+    -- Add Smoothness Slider
+    LeftGroupBox:AddSlider('SmoothnessSlider', {
+        Text = 'Smoothness',
+        Default = smoothness,
+        Min = 0,
+        Max = 1,
+        Rounding = 2,
+        Callback = function(Value)
+            print('[cb] Smoothness changed!', Value)
+            smoothness = Value
+        end
+    })
+    
+    LeftGroupBox:AddSlider('Orbit Speed', {
+        Text = 'Orbit Speed',
+        Default = orbitSpeed,
+        Min = 0,
+        Max = 100,
+        Rounding = 1,
+        Callback = function(Value)
+            print('[cb] Orbit Speed changed!', Value)
+            orbitSpeed = Value
+        end
+    })
+    
+    LeftGroupBox:AddSlider('PredictionSlider', {
+        Text = 'Prediction',
+        Default = predictionLevel,
+        Min = 0,
+        Max = 1,
+        Rounding = 1,
+        Callback = function(Value)
+            print('[cb] Prediction changed!', Value)
+            predictionLevel = Value
+        end
+    })
+
+getgenv().range = 250
+
+getgenv().whitelist = {}
+
+
+getgenv().tracer = Instance.new("Part")
+getgenv().tracer.Size = Vector3.new(0.2, 0.2, 0.2)
+getgenv().tracer.Material = Enum.Material.Neon
+getgenv().tracer.Color = Color3.new(1, 0, 0)
+getgenv().tracer.Transparency = 1
+getgenv().tracer.Anchored = true
+getgenv().tracer.CanCollide = false
+getgenv().tracer.Parent = workspace
+
+getgenv().enabled = false
+getgenv().active = false
+getgenv().visualizeEnabled = false
+getgenv().silentEnabled = false
+getgenv().lastHealth = {}
+
+KillAura:AddToggle('MainToggle', {
+    Text = 'Kill Aura',
+    Default = false,
+    Callback = function(state)
+        getgenv().enabled = state
+        if not state then
+            getgenv().active = false
+            getgenv().tracer.Transparency = 1
+        end
+    end
+}):AddKeyPicker('Keybind', {
+    Default = 'K',
+    Text = 'kill aura',
+    Mode = 'Toggle',
+    Callback = function(state)
+        if not getgenv().enabled or UserInputService:GetFocusedTextBox() then return end
+        getgenv().active = state
+    end
+})
+
+KillAura:AddSlider("Range", {
+    Text = "Range",
+    Default = 250,
+    Min = 10,
+    Max = 250,
+    Rounding = 1,
+    Callback = function(value)
+        getgenv().range = value
+    end
+})
+
+KillAura:AddToggle('Visualizer', {
+    Text = 'Visualize',
+    Default = false,
+    Callback = function(state)
+        getgenv().visualizeEnabled = state
+    end
+}):AddColorPicker('VisualizerColor', {
+    Text = 'Visualizer Color',
+    Default = Color3.new(1, 0, 0),
+    Callback = function(value)
+        getgenv().tracer.Color = value
+    end
+})
+
+KillAura:AddToggle('Silent', {
+    Text = 'Silent',
+    Default = false,
+    Callback = function(state)
+        getgenv().silentEnabled = state
+    end
+})
+
+KillAura:AddInput('wlb', {
+    Default = '',
+    Numeric = false,
+    Finished = false,
+    Text = 'Add/Remove Player',
+    Tooltip = 'Type a name or display name to add/remove from whitelist',
+    Placeholder = 'Player Name',
+    Callback = function(input)
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if player.Name == input or player.DisplayName == input then
+                if getgenv().whitelist[player.Name] then
+                    getgenv().whitelist[player.Name] = nil
+                    Library:Notify(player.Name .. " removed from whitelist.", 2)
+                else
+                    getgenv().whitelist[player.Name] = true
+                    Library:Notify(player.Name .. " added to whitelist.", 2)
+                end
+                return
+            end
+        end
+        Library:Notify("Player not found.", 2)
+    end,
+    Autocomplete = function(input)
+        local suggestions = {}
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if string.find(string.lower(player.Name), string.lower(input)) or string.find(string.lower(player.DisplayName), string.lower(input)) then
+                table.insert(suggestions, player.Name .. " (" .. player.DisplayName .. ")")
+            end
+        end
+        return suggestions
+    end
+})
+
+
+
+task.spawn(function()
+    while true do
+        if getgenv().active and getgenv().enabled and game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool") and game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool"):FindFirstChild("Handle") then
+            if workspace:FindFirstChild("Players") and workspace.Players:FindFirstChild(game.Players.LocalPlayer.Name) and workspace.Players:FindFirstChild(game.Players.LocalPlayer.Name):FindFirstChild("BodyEffects") and workspace.Players:FindFirstChild(game.Players.LocalPlayer.Name).BodyEffects:FindFirstChild("K.O") and workspace.Players:FindFirstChild(game.Players.LocalPlayer.Name).BodyEffects["K.O"].Value then
+                task.wait()
+            else
+                local closest = math.huge
+                target = nil
+
+                for _, player in pairs(game.Players:GetPlayers()) do
+                    if player ~= game.Players.LocalPlayer and not getgenv().whitelist[player.Name] and player.Character and player.Character:FindFirstChild("Head") and not player.Character:FindFirstChild("GRABBING_CONSTRAINT") then
+                        if workspace:FindFirstChild("Players") and workspace.Players:FindFirstChild(player.Name) and workspace.Players:FindFirstChild(player.Name):FindFirstChild("BodyEffects") and workspace.Players:FindFirstChild(player.Name).BodyEffects:FindFirstChild("K.O") and not workspace.Players:FindFirstChild(player.Name).BodyEffects["K.O"].Value then
+                            local dist = (game.Players.LocalPlayer.Character.HumanoidRootPart.Position - player.Character.Head.Position).Magnitude
+                            if dist < closest and dist <= getgenv().range then
+                                closest = dist
+                                target = player
+                            end
+                        end
+                    end
+                end
+
+                if target and target.Character and target.Character:FindFirstChild("Head") then
+                    if getgenv().visualizeEnabled then
+                        getgenv().tracer.Transparency = 0
+                        getgenv().tracer.Size = Vector3.new(0.2, 0.2, (game.Players.LocalPlayer.Character.HumanoidRootPart.Position - target.Character.Head.Position).Magnitude)
+                        getgenv().tracer.CFrame = CFrame.lookAt(game.Players.LocalPlayer.Character.HumanoidRootPart.Position, target.Character.Head.Position) * CFrame.new(0, 0, -getgenv().tracer.Size.Z / 2)
+                    else
+                        getgenv().tracer.Transparency = 1
+                    end
+
+                    local humanoid = target.Character:FindFirstChild("Humanoid")
+                    if humanoid then
+                        if not getgenv().lastHealth[target.Name] then
+                            getgenv().lastHealth[target.Name] = humanoid.Health
+                        end
+                        if humanoid.Health < getgenv().lastHealth[target.Name] then
+                            playHitsound()
+                        end
+                        getgenv().lastHealth[target.Name] = humanoid.Health
+                    end
+
+                    if getgenv().silentEnabled then
+                        game.ReplicatedStorage.MainEvent:FireServer(
+                            "ShootGun",
+                            game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool"):FindFirstChild("Handle"),
+                            game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool"):FindFirstChild("Handle").CFrame.Position - Vector3.new(0, 12, 0),
+                            target.Character.Head.Position - Vector3.new(0, 12, 0),
+                            target.Character.Head,
+                            Vector3.new(0, 0, -1)
+                    )
+                    else
+                        game.ReplicatedStorage.MainEvent:FireServer("ShootGun", game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool"):FindFirstChild("Handle"), game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool"):FindFirstChild("Handle").CFrame.Position, target.Character.Head.Position, target.Character.Head, Vector3.new(0, 0, -1))
+                    end
+                else
+                    getgenv().tracer.Transparency = 1
+                end
+            end
+        else
+            getgenv().tracer.Transparency = 1
+        end
+        task.wait()
+    end
+end)
+
+LeftGroupBox = Tabs.Visuals:AddLeftGroupbox('Cham Esp')
+
+-- The actual cham effect
+Players = game:GetService("Players")
+RunService = game:GetService("RunService")
+LocalPlayer = Players.LocalPlayer
+highlightColor = Color3.fromRGB(255, 255, 255)  -- Default color for chams
+
+-- Function to create a cham (highlight) effect for a player
+function CreateCham(player)
+    local character = player.Character or player.CharacterAdded:Wait()
+    if not character:FindFirstChild("HumanoidRootPart") then return end
+
+    -- Create the highlight object for the player's character
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ChamHighlight"
+    highlight.Parent = character
+    highlight.Adornee = character  -- Set the highlight target to the entire character
+    highlight.FillColor = highlightColor  -- Set color to chosen value
+    highlight.FillTransparency = 0.5  -- Make the highlight semi-transparent
+    highlight.OutlineTransparency = 1  -- Fully transparent outline (no outline)
+
+    -- Clean up when the character is removed
+    character:WaitForChild("HumanoidRootPart").AncestryChanged:Connect(function()
+        highlight:Destroy()  -- Remove the highlight when the player leaves or the character is destroyed
+    end)
+end
+
+-- UI Toggle for Chams
+LeftGroupBox:AddToggle('ChamsToggle', {
+    Text = 'Chams',
+    Default = false, -- Default value (true / false)
+    Tooltip = 'Toggles cham effect for players',
+
+    Callback = function(Value)
+        _G.chams = Value
+        -- Apply or remove the cham effect based on the toggle state
+        if _G.chams then
+            -- Apply cham effect for players when enabled
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    CreateCham(player)
+                end
+            end
+        else
+            -- Remove cham effect for players when disabled
+            for _, player in pairs(Players:GetPlayers()) do
+                local character = player.Character
+                if character then
+                    local highlight = character:FindFirstChild("ChamHighlight")
+                    if highlight then
+                        highlight:Destroy()
+                    end
+                end
+            end
+        end
+    end
+})
+
+-- Add color picker UI for Chams
+LeftGroupBox:AddLabel('Color'):AddColorPicker('ColorPicker', {
+    Default = Color3.fromRGB(255, 255, 255), -- White color (default)
+    Title = 'Cham Color', -- Title of the color picker
+    Transparency = 0, -- Disables transparency changing for this color picker
+
+    Callback = function(Value)
+        highlightColor = Value  -- Update the highlight color when the user picks a color
+        -- Update the cham color for existing players
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local highlight = player.Character:FindFirstChild("ChamHighlight")
+                if highlight then
+                    highlight.FillColor = highlightColor  -- Apply the new color to the existing highlight
+                end
+            end
+        end
+    end
+})
+
+-- Handle player join to ensure chams are applied
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        -- Wait until the character's root part is available before applying chams
+        local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+        if _G.chams and player ~= LocalPlayer then
+            CreateCham(player)  -- Apply cham if enabled and not the local player
+        end
+    end)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    -- Remove cham when player leaves
+    if player.Character then
+        local highlight = player.Character:FindFirstChild("ChamHighlight")
+        if highlight then
+            highlight:Destroy()
+        end
+    end
+end)
+
+-- Periodically update chams for players when enabled using RunService.Heartbeat
+RunService.Heartbeat:Connect(function()
+    if _G.chams then
+        -- Loop through all players and ensure chams are applied
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                -- Create cham if it doesn't exist for the player
+                local character = player.Character
+                if not character:FindFirstChild("ChamHighlight") then
+                    CreateCham(player)
+                end
+            end
+        end
+    else
+        -- Disable the cham effect if _G.chams is false
+        for _, player in pairs(Players:GetPlayers()) do
+            local character = player.Character
+            if character then
+                local highlight = character:FindFirstChild("ChamHighlight")
+                if highlight then
+                    highlight:Destroy()
+                end
+            end
+        end
+    end
+end)
+
+-- Ensure chams are applied to players who have respawned
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        -- In case a player respawns
+        if _G.chams and player ~= LocalPlayer then
+            local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+            CreateCham(player)
+        end
+    end)
+end)
+
+-- Execute the toggle when the script is first run
+if _G.chams then
+    -- Enable the cham effect for players (not including local player)
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            CreateCham(player)
+        end
+    end
+else
+    -- Disable the cham effect for all players
+    for _, player in pairs(Players:GetPlayers()) do
+        local character = player.Character
+        if character then
+            local highlight = character:FindFirstChild("ChamHighlight")
+            if highlight then
+                highlight:Destroy()
+            end
+        end
+    end
+end
+
+LeftGroupBox = Tabs.Visuals:AddLeftGroupbox('Name Esp')
+
+Players = game:GetService("Players")
+RunService = game:GetService("RunService")
+Debris = game:GetService("Debris")  -- For cleanup
+LocalPlayer = Players.LocalPlayer
+
+displayOption = 'Username'  -- Default display option
+nameTagESPEnabled = false  -- Default for the name tag ESP toggle
+
+-- Function to create a name tag for a player
+function CreateNameTag(player)
+    -- Skip the local player
+    if player == LocalPlayer then return end
+
+    local character = player.Character or player.CharacterAdded:Wait()
+    local head = character:WaitForChild("Head")
+
+    -- Create BillboardGui and TextLabel for the name tag
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Parent = character
+    billboardGui.Size = UDim2.new(0, 100, 0, 30)  -- Adjust the size for the name tag
+    billboardGui.AlwaysOnTop = true
+    billboardGui.Adornee = head
+    billboardGui.StudsOffset = Vector3.new(0, 6, 0)  -- Adjust position
+
+    local nameTag = Instance.new("TextLabel")
+    nameTag.Parent = billboardGui
+    nameTag.Size = UDim2.new(1, 0, 1, 0)  -- Full size of the BillboardGui
+    nameTag.BackgroundTransparency = 1
+    nameTag.TextColor3 = Color3.new(1, 1, 1)  -- White text color
+    nameTag.TextStrokeTransparency = 0.6  -- Adjust outline visibility
+    nameTag.TextStrokeColor3 = Color3.new(0, 0, 0)  -- Black stroke for visibility
+    nameTag.TextSize = 10  -- Smaller base text size
+
+    -- Set the name text based on the selected option
+    if displayOption == "Username" then
+        nameTag.Text = player.Name  -- Display the player's username
+    else
+        nameTag.Text = player.DisplayName  -- Display the player's display name
+    end
+
+    -- Cleanup when the player leaves
+    Debris:AddItem(billboardGui, 5)  -- Automatically cleanup after 5 seconds
+end
+
+-- Function to remove name tags
+function RemoveNameTags()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Character then
+            local character = player.Character
+            local billboardGui = character:FindFirstChildOfClass("BillboardGui")
+            if billboardGui then
+                -- Cleanup with Debris service
+                Debris:AddItem(billboardGui, 0)
+            end
+        end
+    end
+end
+
+-- Add the toggle to enable or disable the Name Tag ESP
+LeftGroupBox:AddToggle('MyToggle', {
+    Text = 'Enable Name Tag ESP',
+    Default = false,  -- Default value (true / false)
+    Tooltip = 'Toggles the name tag ESP visibility.',
+    Callback = function(Value)
+        nameTagESPEnabled = Value
+        if nameTagESPEnabled then
+            -- Update name tags immediately if ESP is enabled
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    CreateNameTag(player)
+                end
+            end
+        else
+            -- If ESP is disabled, remove all name tags
+            RemoveNameTags()
+        end
+    end
+})
+
+-- Add the dropdown for selecting between Username or DisplayName
+LeftGroupBox:AddDropdown('NameDisplayOption', {
+    Values = { 'DisplayName', 'Username' },
+    Default = 1,  -- Default to "Username"
+    Multi = false, -- Single selection only
+    Text = 'Name Display Option',
+    Tooltip = 'Choose whether to display the player\'s Username or DisplayName',
+    Callback = function(Value)
+        displayOption = Value  -- Update the display option based on dropdown selection
+        if nameTagESPEnabled then
+            -- Reapply name tags immediately when the dropdown value changes
+            RemoveNameTags()  -- Remove existing name tags
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    CreateNameTag(player)
+                end
+            end
+        end
+    end
+})
+
+-- Periodically update name tags every heartbeat (for new players)
+RunService.Heartbeat:Connect(function()
+    if nameTagESPEnabled then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and not player.Character:FindFirstChildOfClass("BillboardGui") then
+                CreateNameTag(player)
+            end
+        end
+    end
+end)
+
+getgenv().cframeSpeedEnabled = false
+getgenv().cframeSpeedKeybindActive = false
+getgenv().cframeSpeed = 10
+
+local uhhh = Tabs.Character:AddLeftGroupbox('Movement')
+
+uhhh:AddToggle('CFrameSpeedToggle', {
+    Text = 'cframe',
+    Default = false,
+    Callback = function(state)
+        getgenv().cframeSpeedEnabled = state
+        if not state then getgenv().cframeSpeedKeybindActive = false end
+    end,
+}):AddKeyPicker('CFrameSpeedKeybind', {
+    Default = 'T',
+    Text = 'Cframe',
+    Mode = 'Toggle',
+    Callback = function(state)
+        if game:GetService("UserInputService"):GetFocusedTextBox() then return end
+        if getgenv().cframeSpeedEnabled then getgenv().cframeSpeedKeybindActive = state end
+    end,
+})
+
+uhhh:AddSlider('CFrameSpeedSlider', {
+    Text = 'Speed',
+    Default = 10,
+    Min = 1,
+    Max = 200,
+    Rounding = 1,
+    Callback = function(value)
+        getgenv().cframeSpeed = value
+    end,
+})
+
+game:GetService('RunService').RenderStepped:Connect(function()
+    local player = game.Players.LocalPlayer
+    local humanoid = player.Character and player.Character:FindFirstChild('Humanoid')
+    if not humanoid then return end
+    
+    humanoid.WalkSpeed = getgenv().walkSpeedEnabled and getgenv().walkSpeedKeybindActive and getgenv().walkSpeed or 16
+    humanoid.JumpPower = getgenv().jumpPowerEnabled and getgenv().jumpPower or 50
+end)
+
+task.spawn(function()
+    while task.wait(0) do
+        local player = game.Players.LocalPlayer
+        local character = player.Character
+        local humanoid = character and character:FindFirstChild("Humanoid")
+        if getgenv().cframeSpeedEnabled and getgenv().cframeSpeedKeybindActive and character and humanoid and humanoid.MoveDirection.Magnitude > 0 then
+            character:TranslateBy(humanoid.MoveDirection * getgenv().cframeSpeed * task.wait() * 3)
+        end
+    end
+end)
+
+
+getgenv().FlightKeybind = Enum.KeyCode.X
+getgenv().FlySpeed = 50
+getgenv().FlightEnabled = false
+getgenv().Flying = false
+
+local function CreateCore()
+    if workspace:FindFirstChild("Core") then workspace.Core:Destroy() end
+    local Core = Instance.new("Part")
+    Core.Name = "Core"
+    Core.Size = Vector3.new(0.05, 0.05, 0.05)
+    Core.CanCollide = false
+    Core.Transparency = 1
+    Core.Parent = workspace
+    local Weld = Instance.new("Weld", Core)
+    Weld.Part0 = Core
+    Weld.Part1 = LocalPlayer.Character.HumanoidRootPart
+    Weld.C0 = CFrame.new(0, 0, 0)
+    return Core
+end
+
+local function StartFly()
+    if getgenv().Flying then return end
+    getgenv().Flying = true
+    LocalPlayer.Character:FindFirstChildOfClass("Humanoid").PlatformStand = true
+    local Core = CreateCore()
+    local BV = Instance.new("BodyVelocity", Core)
+    BV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    BV.Velocity = Vector3.zero
+    local BG = Instance.new("BodyGyro", Core)
+    BG.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    BG.P = 9e4
+    BG.CFrame = Core.CFrame
+    RunService.RenderStepped:Connect(function()
+        if not getgenv().Flying then return end
+        local camera = workspace.CurrentCamera
+        local moveDirection = Vector3.zero
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDirection = moveDirection + camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDirection = moveDirection - camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDirection = moveDirection - camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDirection = moveDirection + camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDirection = moveDirection + Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDirection = moveDirection - Vector3.new(0, 1, 0) end
+        BV.Velocity = moveDirection * getgenv().FlySpeed
+        BG.CFrame = camera.CFrame
+    end)
+end
+
+local function StopFly()
+    if not getgenv().Flying then return end
+    getgenv().Flying = false
+    LocalPlayer.Character:FindFirstChildOfClass("Humanoid").PlatformStand = false
+    if workspace:FindFirstChild("Core") then workspace.Core:Destroy() end
+end
+
+uhhh:AddToggle("FlightToggle", {
+    Text = "Flight",
+    Default = false,
+    Callback = function(state)
+        getgenv().FlightEnabled = state
+        if not state then StopFly() end
+    end
+}):AddKeyPicker("FlightKeybindPicker", {
+    Default = "X",
+    Text = "Flight",
+    Mode = "Toggle",
+    Callback = function(state)
+        if UserInputService:GetFocusedTextBox() then return end
+        if state and getgenv().FlightEnabled then
+            StartFly()
+        else
+            StopFly()
+        end
+    end
+})
+
+uhhh:AddSlider("FlySpeedSlider", {
+    Text = "Fly Speed",
+    Default = 50,
+    Min = 10,
+    Max = 5000,
+    Rounding = 0,
+    Callback = function(value)
+        getgenv().FlySpeed = value
+    end
+})
+
+getgenv().SpinbotEnabled = false
+getgenv().SpinSpeed = 10
+
+local function toggleSpinbot(state)
+    if state then
+        if not getgenv().SpinConnection then
+            getgenv().SpinConnection = game:GetService("RunService").RenderStepped:Connect(function()
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and not getgenv().Flying then
+                    LocalPlayer.Character.Humanoid.AutoRotate = false
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.Angles(0, math.rad(getgenv().SpinSpeed), 0)
+                end
+            end)
+        end
+    else
+        if getgenv().SpinConnection then
+            getgenv().SpinConnection:Disconnect()
+            getgenv().SpinConnection = nil
+        end
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.AutoRotate = true
+        end
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+    if getgenv().SpinbotEnabled then
+        toggleSpinbot(true)
+    end
+end)
+
+uhhh:AddToggle('SpinbotToggle', {
+    Text = 'Spinbot',
+    Default = false,
+    Callback = function(state)
+        getgenv().SpinbotEnabled = state
+        toggleSpinbot(state)
+    end,
+}):AddKeyPicker('SpinbotKeybind', {
+    Default = 'N',
+    Text = 'Spinbot',
+    Mode = 'Toggle',
+    Callback = function(state)
+        if not UserInputService:GetFocusedTextBox() and getgenv().SpinbotEnabled then
+            toggleSpinbot(state)
+        end
+    end,
+})
+
+uhhh:AddSlider('SpinSpeedSlider', {
+    Text = 'Spin Speed',
+    Default = 10,
+    Min = 1,
+    Max = 50,
+    Rounding = 1,
+    Callback = function(value)
+        getgenv().SpinSpeed = value
+    end,
+})
+
+local AnimationSpeed = 1
+
+local animation = Instance.new("Animation")
+animation.AnimationId = "rbxassetid://10714340543"
+
+local animationTrack
+local isPlaying = false
+local flossEnabled = false
+
+local function loadAnimationTrack(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    animationTrack = humanoid:LoadAnimation(animation)
+    animationTrack.Looped = true
+    animationTrack.Priority = Enum.AnimationPriority.Action
+    
+    if flossEnabled then
+        task.wait(0.6)
+        animationTrack:Play()
+        animationTrack:AdjustSpeed(AnimationSpeed)
+        isPlaying = true
+    end
+end
+
+game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(character)
+    loadAnimationTrack(character)
+end)
+
+if game:GetService("Players").LocalPlayer.Character then
+    loadAnimationTrack(game:GetService("Players").LocalPlayer.Character)
+end
+
+local stutz = Tabs.Character:AddRightGroupbox('Misc')
+
+stutz:AddToggle("FlossToggle", {
+    Text = "floss",
+    Default = false,
+    Callback = function(state)
+        flossEnabled = state
+        if state and animationTrack then
+            animationTrack:Play()
+            animationTrack:AdjustSpeed(AnimationSpeed)
+            isPlaying = true
+        elseif not state and animationTrack then
+            animationTrack:Stop()
+            isPlaying = false
+        end
+    end
+}):AddKeyPicker("FlossKeybindPicker", {
+    Default = "V",
+    Text = "Floss",
+    Mode = "Toggle",
+    Callback = function(key)
+        if UserInputService:GetFocusedTextBox() then return end
+        if flossEnabled and animationTrack then
+            if isPlaying then
+                animationTrack:Stop()
+            else
+                animationTrack:Play()
+                animationTrack:AdjustSpeed(AnimationSpeed)
+            end
+            isPlaying = not isPlaying
+        end
+    end
+})
+
+stutz:AddToggle("NoClipToggle", {
+    Text = "NoClip",
+    Default = false,
+    Callback = function(state)
+        noClipEnabled = state
+    end
+}):AddKeyPicker("NoClipKeybindPicker", {
+    Default = "J",
+    Text = "NoClip",
+    Mode = "Toggle",
+    Callback = function(state)
+        if noClipEnabled then
+            local character = game:GetService("Players").LocalPlayer.Character
+            if character then
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") and not part.Name:match("Arm") and not part.Name:match("Leg") then
+                        part.CanCollide = state
+                    end
+                end
+            end
+        end
+    end
+})
+
